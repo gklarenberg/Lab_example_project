@@ -1,0 +1,33 @@
+{
+    "collab_server" : "",
+    "contents" : "",
+    "created" : 1585749700832.000,
+    "dirty" : false,
+    "encoding" : "",
+    "folds" : "",
+    "hash" : "0",
+    "id" : "DB7F883F",
+    "lastKnownWriteTime" : 4775016535739951967,
+    "last_content_update" : 1585749700832,
+    "path" : null,
+    "project_path" : null,
+    "properties" : {
+        "cacheKey" : "DDB297FC",
+        "caption" : "phe_ind_OSBS",
+        "contentUrl" : "grid_resource/gridviewer.html?env=&obj=phe_ind_OSBS&cache_key=DDB297FC",
+        "displayedObservations" : 82477,
+        "environment" : "",
+        "expression" : "phe_ind_OSBS",
+        "object" : "phe_ind_OSBS",
+        "preview" : 0,
+        "totalObservations" : 82477,
+        "variables" : 11
+    },
+    "read_only" : false,
+    "read_only_alternatives" : [
+    ],
+    "relative_order" : 2,
+    "source_on_save" : false,
+    "source_window" : "",
+    "type" : "r_dataframe"
+}

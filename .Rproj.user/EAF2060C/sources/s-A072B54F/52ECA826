@@ -1,0 +1,33 @@
+{
+    "collab_server" : "",
+    "contents" : "",
+    "created" : 1585749047258.000,
+    "dirty" : false,
+    "encoding" : "",
+    "folds" : "",
+    "hash" : "0",
+    "id" : "52ECA826",
+    "lastKnownWriteTime" : 5657966255943886514,
+    "last_content_update" : 1585749047258,
+    "path" : null,
+    "project_path" : null,
+    "properties" : {
+        "cacheKey" : "EE3E3FB",
+        "caption" : "status_OSBS",
+        "contentUrl" : "grid_resource/gridviewer.html?env=&obj=status_OSBS&cache_key=EE3E3FB",
+        "displayedObservations" : 88598,
+        "environment" : "",
+        "expression" : "status_OSBS",
+        "object" : "status_OSBS",
+        "preview" : 0,
+        "totalObservations" : 88598,
+        "variables" : 18
+    },
+    "read_only" : false,
+    "read_only_alternatives" : [
+    ],
+    "relative_order" : 4,
+    "source_on_save" : false,
+    "source_window" : "",
+    "type" : "r_dataframe"
+}

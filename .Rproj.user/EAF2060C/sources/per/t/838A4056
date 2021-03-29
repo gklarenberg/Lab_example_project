@@ -1,0 +1,26 @@
+{
+    "collab_server" : "",
+    "contents" : "",
+    "created" : 1585540910710.000,
+    "dirty" : false,
+    "encoding" : "UTF-8",
+    "folds" : "",
+    "hash" : "2131127530",
+    "id" : "838A4056",
+    "lastKnownWriteTime" : 1585709655,
+    "last_content_update" : 1585709655,
+    "path" : "~/OneDrive - University of Florida/TEACHING/FOR6934_Data_wrangling/Week 10 Tidy data - viz_dplyr/Lab_example_project/Phenology_OSBS/4_Scripts/4_Analysis_temp_pollen.R",
+    "project_path" : "Phenology_OSBS/4_Scripts/4_Analysis_temp_pollen.R",
+    "properties" : {
+        "cursorPosition" : "81,0",
+        "scrollLine" : "57",
+        "tempName" : "Untitled1"
+    },
+    "read_only" : false,
+    "read_only_alternatives" : [
+    ],
+    "relative_order" : 3,
+    "source_on_save" : false,
+    "source_window" : "",
+    "type" : "r_source"
+}

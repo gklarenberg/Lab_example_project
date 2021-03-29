@@ -1,0 +1,482 @@
+---
+title: 'SIIL indicators Tanzania: precipitation'
+author:
+- affiliation: Department of Agricultural and Biological Engineering, University of
+    Florida
+  email: gklarenberg@ufl.edu
+  name: Geraldine Klarenberg
+date: "January 30, 2018"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Precipitation
+
+To run the following code and generate results, the folders Data_additional and Outputs need to be available within the Rproject "VitalSigns".
+
+A number of libraries are required to extract the correct data.
+
+```{r library load, message = FALSE}
+library(raster) # for raster files 
+library(rgdal) # software library for reading and writing geospatial data formats ('Geospatial Data Abstraction Library'). OGR ('OpenGIS Simple Features Reference Implementation'/'OGR Simple Features Library' - for shapefiles) is included.
+library(plyr) # for data manipulation
+library(dplyr) # for data manipulation - note that plyr and dplyr can mask each other's functions
+library(zoo) # to work with time series
+library(lubridate) # same
+library(hydroTSM) # hydrological time series and stats tools
+library(ggplot2) # plotting library
+library(reshape2) # helps with making dataframes that can be plotted
+library(cowplot) # to combine different plots in one figure
+```
+
+Set the paths to the various directories we'll need.
+
+```{r set directories}
+file_directory <- "../4_Data_additional/Precipitation"
+output_directory <- "../6_Outputs/Precipitation"
+spatial_directory <- "../3_Data_shapefiles_rasters" # Folder with shapefiles and rasters
+rawdata_directory <- "../2_Data_VS_raw"
+```
+
+Note that because this code is written in R markdown, setting the directories requires two periods at the beginning (the working directory is always set to the folder where the R markdown script sits). When running this as a regular script in an Rproject, one period suffices.
+
+## Landscapes and eplots
+
+Read in the landscape shapefiles that are required. The original landscape shapefiles have L02 for Tanzania, but this landscape was eventually excluded and should be removed.
+
+```{r landscape load}
+landscape_poly <- readOGR(dsn=path.expand(paste(spatial_directory, "/VitalSignsLandscapes2/VitalSignsLandscapes.shp", sep="")), layer="VitalSignsLandscapes")
+# select only the TZA landscapes
+landscape_poly <- landscape_poly[landscape_poly$country == "TZA",]
+# remove L02
+landscape_poly <- landscape_poly[-5,]
+# check the projection for the polygons
+proj4string(landscape_poly)
+```
+
+Also read in the eplot coordinates. For all eplots, the coordinates of the corners have been recorded. Since the soil samples have all been taken at the SE corner, these are the coordinates that will be used.
+
+```{r eplot coordinates}
+eplot_data <- read.csv(paste(rawdata_directory, "/eplot/eplot.csv", sep=""))
+eplot_data <- eplot_data[which(eplot_data$country == "TZA"),] # select only the Tanzania data
+eplot_locs <- subset(eplot_data, select=c(landscape_no, eplot_no, gpsse_long, gpsse_lat))
+eplot_locs <- eplot_locs %>% rename(x = gpsse_long, y = gpsse_lat) # rename so that the coordinates are x and y
+```
+
+The precipitation data were sourced from the Climate Hazards Group website (Funk et al., 2015). The product is the Climate Hazard group InfraRed Precipitation with Station (CHIRPS):  <http://chg.geog.ucsb.edu/data/chirps/>. It is available at a resolution of 0.05 degrees (~5 km at the equator).  
+The products used are monthly precipitation in mm, monthly anomalies in mm and monthly z-scored anomalies. The regular anomalies are the anomalies from the long-term monthly averages **for each month**. The z-scored anomalies are standardized anomalies, also based on data for specific months: standardized values have a mean of 0, and a standard deviation of 1. It is calculated as
+$zscore = \frac{x - \mu}{\sigma}$, with $x$ being the monthly value in question, $\mu$ the long-term average for that month, and $\sigma$ the standard deviation. Z-scored values make it easier to assess how out-of-the-ordinary (or not) a value is in a particular location. It thus makes it easier to do comparisons between locations, easier than when using absolute values or anomalies.
+
+The foler Rscripts in the Rproject "VitalSigns" contains a separate script to download the data from their ftp and write it to the correct Data folder ("Precipitation_download.Rmd").
+
+We start with setting up the dataframe to which information will be written.
+
+```{r setup dataframe}
+
+# use names of landscapes to make empty dataframes to be filled later (so you have the correct number of rows)
+lsc_no <- landscape_poly$landscape_
+#	create empty data.frame (first column) to hold extracted values (mean, sd and median)
+df_mn_zscore <- df_sd_zscore <-  df_md_zscore <- df_mn_mm <- df_sd_mm <-  df_md_mm <-df_mn_anom <- df_sd_anom <-  df_md_anom <-data.frame(landscape_no=lsc_no)
+```
+
+Two functions need to be defined to deal with transposing dataframes that are created during data extraction.
+
+```{r dataframe manipulation}
+drop_col_trans <- function(df, col) {
+  return(df[-col,])	
+}
+
+trans_replc <- function(df) {
+  df_t <- as.data.frame(t(df[,-1])) # transpose dataframe, without the column with landscape names (because this turns everything into characters / factors)
+  colnames(df_t) <- df[,1] # take the first column (with landscape names) and make those column names
+  d <- cbind(date=row.names(df_t), data.frame(df_t, row.names=NULL)) # take the row names and turn them into a proper column
+  return(d) 
+}
+```
+
+Loop over the months and years from 1981 to 2016 to get the information from the downloaded data. All 3 data types (mm, z-score and anomaly) are done within the loop. Note that this loop takes a while to run as it extracts data from 3 x 12 x 35 = 1260 files.  
+Each landscape is 10 x 10 km, so each will be covered by more or less 4 CHIRPS grid cells. For each landscape we calculate a mean and median value, and a standard deviation.
+
+```{r extract z-score precipitation, results='hide',message=FALSE,warning=FALSE,include=FALSE}
+# since this code block takes a long time to execute, the following lines figures out whether the data exists or not. Note that it only checks for 1 file (assuming that if it exists, the other ones also exist, since they are all generated in the same loop)
+if(!file.exists(paste(output_directory, "/CHIRPS_monthly_precip_zscore_mean.csv", sep=""))){
+  for(yr in c(1981:2016)) {
+    for(mnth in c(1:12)) {
+    # read in .bil raster for precip in mm and convert to RasterLayer object for extraction
+    rast_chirps <- raster(readGDAL(fname=paste(file_directory,'/CHIRPS_mm/v2p0chirps', yr, sprintf("%02d", mnth), '.bil', sep='')))
+    # projection needs to be set (same as landscape polygons)
+    proj4string(rast_chirps) <- proj4string(landscape_poly)
+    # read in .tiff raster for z-score precip and convert to RasterLayer object for extraction
+    rast_chirps_zscore <- raster(readGDAL(fname=paste(file_directory, '/CHIRPS_zscore/zscore.', yr,'.', sprintf("%02d", mnth), '.tiff', sep='')))
+    # read in the anomaly data (also tif)
+    rast_chirps_anom <- raster(readGDAL(fname=paste(file_directory,'/CHIRPS_anomaly/anom.', yr,'.', sprintf("%02d", mnth), '.tiff', sep='')))
+    # these 2 rasters have the same projection as the landscapes shapefile (check with proj4string(object_name))
+        
+    #	extract CHIRPS data by polygon (landscape): mean, median and standard deviation
+    # z-scores
+    ext_mn_zscore <- extract(rast_chirps_zscore, landscape_poly, fun=mean, na.rm=TRUE, small=TRUE, df=TRUE)
+    ext_md_zscore <- extract(rast_chirps_zscore, landscape_poly, fun=median, na.rm=TRUE, small=TRUE, df=TRUE)
+    ext_sd_zscore <- extract(rast_chirps_zscore, landscape_poly, fun=sd, na.rm=TRUE, small=TRUE, df=TRUE)
+    # mm values
+    ext_mn_mm <- extract(rast_chirps, landscape_poly, fun=mean, na.rm=TRUE, small=TRUE, df=TRUE)
+    ext_md_mm <- extract(rast_chirps, landscape_poly, fun=median, na.rm=TRUE, small=TRUE, df=TRUE)
+    ext_sd_mm <- extract(rast_chirps, landscape_poly, fun=sd, na.rm=TRUE, small=TRUE, df=TRUE)
+    # anomalies
+    ext_mn_anom <- extract(rast_chirps_anom, landscape_poly, fun=mean, na.rm=TRUE, small=TRUE, df=TRUE)
+    ext_md_anom <- extract(rast_chirps_anom, landscape_poly, fun=median, na.rm=TRUE, small=TRUE, df=TRUE)
+    ext_sd_anom <- extract(rast_chirps_anom, landscape_poly, fun=sd, na.rm=TRUE, small=TRUE, df=TRUE)
+    
+    # these are all now dataframes with a column "ID" (number 1 to 7) and a column "band1" (the values)
+    # change the second column name to month+year
+    names(ext_mn_zscore)[2] <- names(ext_sd_zscore)[2] <- names(ext_md_zscore)[2] <- names(ext_mn_mm)[2] <- names(ext_sd_mm)[2] <- names(ext_md_mm)[2] <- names(ext_mn_anom)[2] <- names(ext_sd_anom)[2] <- names(ext_md_anom)[2] <-paste(yr, sprintf("%02d", mnth), sep='')
+    
+    # for each dataframe, add the columns with values, and year+month as the column name
+    # i.e. rows are landscape, columns are year+month
+    df_mn_zscore <- cbind(df_mn_zscore, ext_mn_zscore[2])
+    df_sd_zscore <- cbind(df_sd_zscore, ext_sd_zscore[2])
+    df_md_zscore <- cbind(df_md_zscore, ext_md_zscore[2])
+    df_mn_mm <- cbind(df_mn_mm, ext_mn_mm[2])
+    df_sd_mm <- cbind(df_sd_mm, ext_sd_mm[2])
+    df_md_mm <- cbind(df_md_mm, ext_md_mm[2])
+    df_mn_anom <- cbind(df_mn_anom, ext_mn_anom[2])
+    df_sd_anom <- cbind(df_sd_anom, ext_sd_anom[2])
+    df_md_anom <- cbind(df_md_anom, ext_md_anom[2])
+    }
+  }
+  #	Transpose data.frames for output (to CSV file). Use earlier defined functions for this
+  df_mn_zscore_t <- trans_replc(df_mn_zscore)
+  df_sd_zscore_t <- trans_replc(df_sd_zscore)
+  df_md_zscore_t <- trans_replc(df_md_zscore)
+  df_mn_mm_t <- trans_replc(df_mn_mm)
+  df_sd_mm_t <- trans_replc(df_sd_mm)
+  df_md_mm_t <- trans_replc(df_md_mm)
+  df_mn_anom_t <- trans_replc(df_mn_anom)
+  df_sd_anom_t <- trans_replc(df_sd_anom)
+  df_md_anom_t <- trans_replc(df_md_anom)
+} else { # if the files already exist, load them, for further calculations
+  df_mn_zscore_t <- read.csv(paste(output_directory, "/CHIRPS_monthly_precip_zscore_mean.csv", sep=""))
+  df_sd_zscore_t <- read.csv(paste(output_directory, "/CHIRPS_monthly_precip_zscore_stdev.csv", sep=""))
+  df_md_zscore_t <- read.csv(paste(output_directory, "/CHIRPS_monthly_precip_zscore_median.csv", sep=""))
+  df_mn_mm_t <- read.csv(paste(output_directory, "/CHIRPS_monthly_precip_mm_mean.csv", sep=""))
+  df_sd_mm_t <- read.csv(paste(output_directory, "/CHIRPS_monthly_precip_mm_stdev.csv", sep=""))
+  df_md_mm_t <- read.csv(paste(output_directory, "/CHIRPS_monthly_precip_mm_median.csv", sep=""))
+  df_mn_anom_t <- read.csv(paste(output_directory, "/CHIRPS_monthly_precip_anom_mean.csv", sep=""))
+  df_sd_anom_t <- read.csv(paste(output_directory, "/CHIRPS_monthly_precip_anom_stdev.csv", sep=""))
+  df_md_anom_t <- read.csv(paste(output_directory, "/CHIRPS_monthly_precip_anom_median.csv", sep=""))
+}
+```
+
+The dataframes now look like something like this (mean monthly precipitation in mm):
+```{r df example, echo=FALSE}
+head(df_mn_mm_t)
+```
+
+Write the output to the output folder (if it does not exist yet)
+
+```{r write output}
+if(!file.exists(paste(output_directory, "/CHIRPS_monthly_precip_zscore_mean.csv", sep=""))){
+  write.csv(df_mn_zscore_t, 
+            paste(output_directory, "/CHIRPS_monthly_precip_zscore_mean.csv", sep=""), row.names=FALSE)
+  write.csv(df_md_zscore_t, 
+            paste(output_directory, "/CHIRPS_monthly_precip_zscore_median.csv", sep=""), row.names=FALSE)
+  write.csv(df_sd_zscore_t, 
+            paste(output_directory, "/CHIRPS_monthly_precip_zscore_stdev.csv", sep=""), row.names=FALSE)
+  write.csv(df_mn_mm_t, 
+            paste(output_directory, "/CHIRPS_monthly_precip_mm_mean.csv", sep=""), row.names=FALSE)
+  write.csv(df_md_mm_t, 
+            paste(output_directory, "/CHIRPS_monthly_precip_mm_median.csv", sep=""), row.names=FALSE)
+  write.csv(df_sd_mm_t, 
+            paste(output_directory, "/CHIRPS_monthly_precip_mm_stdev.csv", sep=""), row.names=FALSE)
+  write.csv(df_mn_anom_t, 
+            paste(output_directory, "/CHIRPS_monthly_precip_anom_mean.csv", sep=""), row.names=FALSE)
+  write.csv(df_md_anom_t, 
+            paste(output_directory, "/CHIRPS_monthly_precip_anom_median.csv", sep=""), row.names=FALSE)
+  write.csv(df_sd_anom_t, 
+            paste(output_directory, "/CHIRPS_monthly_precip_anom_stdev.csv", sep=""), row.names=FALSE)
+}
+```
+
+These are not the final indicators we need for the project. After inspection of the files, it shows that median and mean values are very similar (see plot below). Standard deviations are (predictably) very small, since the landscape values are based on only 4 or so grid cells.
+
+```{r md_mn plot, echo=FALSE}
+
+plot(df_mn_mm_t[,2],df_md_mm_t[,2], xlab="Mean values (mm)", ylab="Median values (mm)")
+points(df_mn_mm_t[,3],df_md_mm_t[,3])
+points(df_mn_mm_t[,4],df_md_mm_t[,4])
+points(df_mn_mm_t[,5],df_md_mm_t[,5])
+points(df_mn_mm_t[,6],df_md_mm_t[,6])
+points(df_mn_mm_t[,7],df_md_mm_t[,7])
+points(df_mn_mm_t[,8],df_md_mm_t[,8])
+points(df_mn_anom_t[,2],df_md_anom_t[,2],col="blue")
+points(df_mn_anom_t[,3],df_md_anom_t[,3],col="blue")
+points(df_mn_anom_t[,4],df_md_anom_t[,4],col="blue")
+points(df_mn_anom_t[,5],df_md_anom_t[,5],col="blue")
+points(df_mn_anom_t[,6],df_md_anom_t[,6],col="blue")
+points(df_mn_anom_t[,7],df_md_anom_t[,7],col="blue")
+points(df_mn_anom_t[,8],df_md_anom_t[,8],col="blue")
+legend(x=200,y=100,pch=c(1),col=c("black","blue"),c("Monthly precipitation","Anomalies"))
+```
+
+To check the average monthly precipitation pattern 
+
+```{r monthly precip, message=FALSE}
+
+# use earlier created dataframes, convert the 'date' column to proper dates
+df_mn_mm_t$date=as.Date(as.yearmon(as.character(df_mn_mm_t$date),format="%Y%m")) # turn first column into dates
+df_mn_mm_t=read.zoo(df_mn_mm_t) # turn into a zoo dataframe (has advantages for doing time series calculations)
+
+# For each landscape, calculate the monthly average (+sd)
+precip_distribution=data.frame(matrix(NA,ncol=14,nrow=12))
+for(i in 1:7){
+  for(j in 1:12){
+  month_ave=mean(df_mn_mm_t[as.numeric(format(index(df_mn_mm_t), '%m'))==j,i]) 
+  month_sd=sd(df_mn_mm_t[as.numeric(format(index(df_mn_mm_t), '%m'))==j,i])
+  precip_distribution[j,i]=month_ave
+  precip_distribution[j,i+7]=month_sd
+  }
+}
+# add column names and rows
+names(precip_distribution)=c("L18_ave","L19_ave","L20_ave","L22_ave","L03_ave","L10_ave","L11_ave","L18_sd","L19_sd","L20_sd","L22_sd","L03_sd","L10_sd","L11_sd")
+# add months
+precip_distribution$months=c("Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec")
+precip_distribution$month_no=c(1,2,3,4,5,6,7,8,9,10,11,12)
+```
+The patterns look as follows (plotted to represent the rainy season properly)
+
+```{r monthly plot, fig.width=12, fig.height=8, echo=FALSE}
+# reorder to represent the rainy season properly (start in July)
+precip_distribution_reorder <- rbind(precip_distribution[7:12,], precip_distribution[1:6,])
+precip_distribution_reorder$month_no <- factor(factor(precip_distribution_reorder$month_no, levels = c("7","8","9","10","11","12","1","2","3","4","5","6")))
+# make plots
+precip_L18<-ggplot(precip_distribution_reorder,aes(x=month_no,y=L18_ave, group=1))+
+  geom_line(lwd=1)+
+  geom_line(aes(y=L18_ave+L18_sd),lty=2)+
+  geom_line(aes(y=L18_ave-L18_sd),lty=2)+
+  theme_classic()+
+  xlab("")+ylab("Precipitation (mm)")+
+  ggtitle("L18")+
+  scale_x_discrete(breaks=precip_distribution_reorder$month_no, labels=precip_distribution_reorder$months)+
+  scale_y_continuous(expand=c(0,0), limits = c(0,470))
+
+precip_L19<-ggplot(precip_distribution_reorder,aes(x=month_no,y=L19_ave, group=1))+
+  geom_line(lwd=1)+
+  geom_line(aes(y=L19_ave+L19_sd),lty=2)+
+  geom_line(aes(y=L19_ave-L19_sd),lty=2)+
+  theme_classic()+
+  xlab("")+ylab("Precipitation (mm)")+
+  ggtitle("L19")+
+  scale_x_discrete(breaks=precip_distribution_reorder$month_no, labels=precip_distribution_reorder$months)+
+  scale_y_continuous(expand=c(0,0), limits = c(0,470))
+
+precip_L20<-ggplot(precip_distribution_reorder,aes(x=month_no,y=L20_ave, group=1))+
+  geom_line(lwd=1)+
+  geom_line(aes(y=L20_ave+L20_sd),lty=2)+
+  geom_line(aes(y=L20_ave-L20_sd),lty=2)+
+  theme_classic()+
+  xlab("")+ylab("Precipitation (mm)")+
+  ggtitle("L20")+
+  scale_x_discrete(breaks=precip_distribution_reorder$month_no, labels=precip_distribution_reorder$months)+
+  scale_y_continuous(expand=c(0,0), limits = c(0,470))
+
+precip_L22<-ggplot(precip_distribution_reorder,aes(x=month_no,y=L22_ave, group=1))+
+  geom_line(lwd=1)+
+  geom_line(aes(y=L22_ave+L22_sd),lty=2)+
+  geom_line(aes(y=L22_ave-L22_sd),lty=2)+
+  theme_classic()+
+  xlab("")+ylab("Precipitation (mm)")+
+  ggtitle("L22")+
+  scale_x_discrete(breaks=precip_distribution_reorder$month_no, labels=precip_distribution_reorder$months)+
+  scale_y_continuous(expand=c(0,0), limits = c(0,470))
+
+precip_L03<-ggplot(precip_distribution_reorder,aes(x=month_no,y=L03_ave, group=1))+
+  geom_line(lwd=1)+
+  geom_line(aes(y=L03_ave+L03_sd),lty=2)+
+  geom_line(aes(y=L03_ave-L03_sd),lty=2)+
+  theme_classic()+
+  xlab("")+ylab("Precipitation (mm)")+
+  ggtitle("L03")+
+  scale_x_discrete(breaks=precip_distribution_reorder$month_no, labels=precip_distribution_reorder$months)+
+  scale_y_continuous(expand=c(0,0), limits = c(0,470))
+
+precip_L10<-ggplot(precip_distribution_reorder,aes(x=month_no,y=L10_ave, group=1))+
+  geom_line(lwd=1)+
+  geom_line(aes(y=L10_ave+L10_sd),lty=2)+
+  geom_line(aes(y=L10_ave-L10_sd),lty=2)+
+  theme_classic()+
+  xlab("")+ylab("Precipitation (mm)")+
+  ggtitle("L10")+
+  scale_x_discrete(breaks=precip_distribution_reorder$month_no, labels=precip_distribution_reorder$months)+
+  scale_y_continuous(expand=c(0,0), limits = c(0,470))
+
+precip_L11<-ggplot(precip_distribution_reorder,aes(x=month_no,y=L11_ave, group=1))+
+  geom_line(lwd=1)+
+  geom_line(aes(y=L11_ave+L11_sd),lty=2)+
+  geom_line(aes(y=L11_ave-L11_sd),lty=2)+
+  theme_classic()+
+  xlab("")+ylab("Precipitation (mm)")+
+  ggtitle("L11")+
+  scale_x_discrete(breaks=precip_distribution_reorder$month_no, labels=precip_distribution_reorder$months)+
+  scale_y_continuous(expand=c(0,0), limits = c(0,470))
+plot_grid(precip_L03,precip_L10,precip_L11,precip_L18,precip_L19,precip_L20,precip_L22,ncol=3)
+# save plots as pdf
+all_plots <- plot_grid(precip_L03,precip_L10,precip_L11,precip_L18,precip_L19,precip_L20,precip_L22,ncol=2)
+pdf(paste(output_directory,"/annual_precip.pdf", sep=""), width=7, height=9)
+all_plots
+dev.off()
+```
+
+We will calculate final indicators from the mean values per landscape:
+- mean annual precipitation  
+- mean precipitation for whole rainy season (Oct to May)  
+- mean precipitation for the first half of the rainy season (Oct - Feb), Vuli  
+- mean precipitation for the second half of the rainy season (Mar - May), Masika
+- the ratio of Vuli to total wet season precipitation
+Indicators on the variability of precipitation are:
+- standard deviation of the annual precipitation (### will this be the same as the average anomalies)
+- standard deviation of Vuli and Masika precipitation
+- maximum and minimum z-scores  
+The periods (months) for the rainy seasons are based on Awange et al. (2016), Cioffi et al. (2016) and visual inspection of the plotted average monthly precipitation.
+
+```{r annual precipitation, message=FALSE}
+annual_precip <- annual_precip_wet <- annual_precip_vuli <- annual_precip_masika <- data.frame(matrix(NA, nrow = 36, ncol = 7)) # define an empty data.frame upfront because we know how much data will be stored - 36 years for 7 landscapes
+for(i in 1:ncol(df_mn_mm_t)){ # loop over the landscapes (columns)
+  ## 1) annual precipitation
+  annual_prec <- monthly2annual(df_mn_mm_t[,i],sum) # calculate the annual values
+  annual_precip[,i]=annual_prec # place the values (the vector) in the dataframe
+  names(annual_precip)[i]=names(df_mn_mm_t)[i] # record the name of the landscape being calculated
+  
+  ## 2) annual wet season precipitation
+  annual_wet <- vector() # create an empty vector to save values to
+  wet_season <- df_mn_mm_t[months(time(df_mn_mm_t),TRUE) %in% c("Oct","Nov","Dec","Jan","Feb","Mar","Apr","May"),i] # select wet season months
+  for(j in 1981:2015){ 
+    annual_wet_single <- sum(wet_season[months(time(wet_season),TRUE) %in% c("Oct","Nov","Dec") & year(wet_season)==j]) +
+      sum(wet_season[months(time(wet_season),TRUE) %in% c("Jan","Feb","Mar","Apr","May") & year(wet_season)==j+1])# since the wet season spans two different years, add months in this manner for each wet season
+    annual_wet <- c(annual_wet,annual_wet_single) # add annual value to vector
+  }
+  annual_precip_wet[,i]=c(annual_wet,NA)
+  names(annual_precip_wet)[i]=names(df_mn_mm_t)[i] # record the name of the landscape being calculated
+  
+  ## 3) annual wet season precipitation; first half - Vuli
+  annual_vuli <- vector() # create an empty vector to save values to
+  for(j in 1981:2015){ 
+    annual_wet_single <- sum(wet_season[months(time(wet_season),TRUE) %in% c("Oct","Nov","Dec") & year(wet_season)==j]) +
+      sum(wet_season[months(time(wet_season),TRUE) %in% c("Jan","Feb") & year(wet_season)==j+1])# since the wet season spans two different years, add months in this manner for each wet season
+    annual_vuli <- c(annual_vuli,annual_wet_single) # add annual value to vector
+  }
+  annual_precip_vuli[,i]=c(annual_vuli,NA) # place the values in the dataframe, with NAs for 1981 and 2016
+  names(annual_precip_vuli)[i]=names(df_mn_mm_t)[i] # record the name of the landscape being calculated
+  
+  ## 3) annual wet season precipitation; second half - Masika
+  annual_masika <- vector() # create an empty vector to save values to
+  for(j in 1982:2016){ # even though we start at 1982, this is actually part of the 1981 wet season
+    annual_wet_single <- sum(wet_season[months(time(wet_season),TRUE) %in% c("Mar","Apr","May") & year(wet_season)==j])
+    annual_masika <- c(annual_masika,annual_wet_single) # add annual value to vector
+  }
+  annual_precip_masika[,i]=c(annual_masika, NA) # now the last value is NA (there is no 2016 wet season)
+  names(annual_precip_masika)[i]=names(df_mn_mm_t)[i] # record the name of the landscape being calculated
+}
+# add years to dataframe
+precip_years<-c(seq(1981,2016,1))
+annual_precip=cbind(year=precip_years,annual_precip)
+annual_precip_wet=cbind(year=precip_years,annual_precip_wet)
+annual_precip_vuli=cbind(year=precip_years,annual_precip_vuli)
+annual_precip_masika=cbind(year=precip_years,annual_precip_masika)
+write.csv(annual_precip,paste(output_directory,"/annual_precip.csv",sep=""),row.names = FALSE)
+write.csv(annual_precip_wet,paste(output_directory,"/annual_precip_wet.csv",sep=""),row.names = FALSE)
+write.csv(annual_precip_vuli,paste(output_directory,"/annual_precip_vuli.csv",sep=""),row.names = FALSE)
+write.csv(annual_precip_masika,paste(output_directory,"/annual_precip_masika.csv",sep=""),row.names = FALSE)
+
+# calculate for each landscape: average annual precip (and st dev), average precip for the wet season, average precipitation for first and second half of the wet season (Vuli and Masika)
+lsc_annual_ave <- t(annual_precip[,2:8] %>% summarize_all(funs(mean)))
+lsc_annual_sd <- t(annual_precip[,2:8] %>% summarize_all(funs(sd)))
+lsc_annual_ave_wet = t(annual_precip_wet[,2:8] %>% summarize_all(funs(mean), na.rm=TRUE))
+lsc_annual_sd_wet = t(annual_precip_wet[,2:8] %>% summarize_all(funs(sd), na.rm=TRUE))
+lsc_annual_ave_vuli = t(annual_precip_vuli[,2:8] %>% summarize_all(funs(mean), na.rm=TRUE))
+lsc_annual_sd_vuli = t(annual_precip_vuli[,2:8] %>% summarize_all(funs(sd), na.rm=TRUE))
+lsc_annual_ave_masika = t(annual_precip_masika[,2:8] %>% summarize_all(funs(mean), na.rm=TRUE))
+lsc_annual_sd_masika = t(annual_precip_masika[,2:8] %>% summarize_all(funs(sd), na.rm=TRUE))
+
+# now put it all together in one dataframe
+all_lsc_annual_precip <- data.frame(lsc_annual_ave, lsc_annual_sd, lsc_annual_ave_wet, lsc_annual_sd_wet, lsc_annual_ave_vuli, lsc_annual_sd_vuli, lsc_annual_ave_masika, lsc_annual_sd_masika)
+names(all_lsc_annual_precip) <- c("ave_precip", "sd_precip", "ave_wet", "sd_wet", "ave_vuli","sd_vuli","ave_masika","sd_masika")
+all_lsc_annual_precip$vuli_ratio <- all_lsc_annual_precip$ave_vuli / all_lsc_annual_precip$ave_wet # add ratio of Vuli to total wet season precip
+all_lsc_annual_precip$cv_precip <- all_lsc_annual_precip$sd_precip / all_lsc_annual_precip$ave_precip # coefficient of variation for precipitation overall
+all_lsc_annual_precip$cv_wet <- all_lsc_annual_precip$sd_wet / all_lsc_annual_precip$ave_wet # coefficient of variation for the wet season 
+all_lsc_annual_precip$cv_vuli <- all_lsc_annual_precip$sd_vuli / all_lsc_annual_precip$ave_vuli # coefficient of variation for vuli precipitation 
+all_lsc_annual_precip$cv_masika <- all_lsc_annual_precip$sd_masika / all_lsc_annual_precip$ave_masika # coefficient of variation for masika precipitation
+all_lsc_annual_precip <- cbind(landscape_no=rownames(all_lsc_annual_precip), data.frame(all_lsc_annual_precip, row.names=NULL)) # turn the rownames with landscape numbers into a column)
+write.csv(all_lsc_annual_precip, paste(output_directory, "/precip_indicators.csv", sep=""), row.names=FALSE)
+
+```
+The values are as follows, and a plot of the absolute values looks as follows:
+
+```{r results_precip, fig.width=10, fig.height=6, message=FALSE,echo=FALSE}
+all_lsc_annual_precip
+plot_data <- melt(all_lsc_annual_precip) # 'melt' the dataframe so we can plot it (uses reshape2)
+plot_data$variable <- factor(plot_data$variable, levels = c("ave_precip", "ave_wet", "ave_vuli", "ave_masika","cv_precip", "cv_wet", "cv_vuli", "cv_masika", "vuli_ratio", "sd_precip", "sd_wet", "sd_vuli", "sd_masika")) # reorder factors here so they are plotted properly
+indicator_plot <- ggplot(subset(plot_data, variable %in% c("ave_precip", "ave_wet", "ave_vuli", "ave_masika")), aes(fill=variable, x=landscape_no, y=value))+
+  geom_bar(stat="identity", position="dodge") +
+  xlab("Landscape") + 
+  ylab("Total precipitation (mm)") +
+  scale_y_continuous(expand=c(0,0)) +
+  theme_classic() +
+  scale_fill_brewer(type="qual", palette=3, name="", labels = c("Annual (Jan - Dec)", "Wet season (Oct - May)", "Vuli (Oct - Feb)", "Masika (Mar - May)")) +
+  theme(text = element_text(size=15), legend.position="top")
+indicator_plot
+
+```
+
+The variability measures (the ratio of vuli precipitation to the total wet season, and the coefficients of variation for total precipitation, the wet season, vuli precipitation and masika precipitation) are depicted below.
+```{r precip_variability_z, fig.width=10, fig.height=6, message=FALSE,echo=FALSE}
+# coefficient of variation
+coefvar_plot <- ggplot(subset(plot_data, variable %in% c("cv_precip", "cv_wet", "cv_vuli", "cv_masika")), aes(fill=variable, x=landscape_no, y=value))+
+  geom_bar(stat="identity", position="dodge") +
+  xlab("Landscape") + 
+  ylab("Coefficient of variation") +
+  scale_y_continuous(expand=c(0,0)) +
+  theme_classic() +
+  scale_fill_brewer(type="qual", palette=3, name="", labels = c("Annual (Jan - Dec)", "Wet season (Oct - May)", "Vuli wet season (Oct - Feb)", "Masika wet season (Mar - May)")) +
+  theme(text = element_text(size=15))
+coefvar_plot
+# save the last 2 figures together
+two_plots <- plot_grid(indicator_plot, coefvar_plot+theme(legend.position="none"), ncol=1, labels=c("A","B"))
+pdf(paste(output_directory,"/precip_indicators.pdf", sep=""), width=10, height=14)
+two_plots
+dev.off()
+```
+
+```{r ratio_plot, echo=FALSE}
+
+barplot_ratio <- ggplot(subset(plot_data, variable =="vuli_ratio"), aes(x=landscape_no, y=value))+
+  geom_bar(stat="identity",fill="palegreen3") +
+  xlab("Landscape") + 
+  ylab("vuli precipitation / total wet season precipitation") +
+  scale_y_continuous(expand=c(0,0)) +
+  theme_classic() +
+  theme(text = element_text(size=15)) +
+  theme(legend.position="none") +
+  geom_abline(slope=0, intercept=0.5, color="black", lwd=1) +
+  annotate("text", label="Most rain during Oct - Feb (Vuli)", x=2.5, y=0.55, cex=5) +
+  annotate("text", label="Most rain during Mar - May (Masika)", x=2.5, y=0.45, cex=5)
+
+barplot_ratio
+# save the plot
+pdf(paste(output_directory,"/precip_indicators_ratios.pdf", sep=""), width=10, height=7)
+barplot_ratio
+dev.off()
+```
+
+
+
+## References
+
+Awange, J. L., Khandu, M. Schumacher, E. Forootan and B. Heck (2016). Exploring hydro-meteorological drought patterns over the Greater Horn of Africa (1979-2014) using remote sensing and reanalysis products. Advances in Water Resources 94, 45–59.
+
+Cioffi, F., F. Conticello and U. Lall (2016). Projecting changes in Tanzania rainfall for the 21st century. Int. J. Climatol. 36, 4297–4314.
+
+Funk, C., P. Peterson, M. Landsfeld, D. Pedreros, J. Verdin, S. Shukla, G. Husak, J. Rowland, L. Harrison, A. Hoell and J. Michaelsen (2015). "The climate hazards infrared precipitation with stations—a new environmental record for monitoring extremes". Scientific Data 2, 150066. doi:10.1038/sdata.2015.66.

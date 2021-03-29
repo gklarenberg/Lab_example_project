@@ -1,0 +1,25 @@
+{
+    "collab_server" : "",
+    "contents" : "",
+    "created" : 1585751111427.000,
+    "dirty" : false,
+    "encoding" : "UTF-8",
+    "folds" : "",
+    "hash" : "0",
+    "id" : "5D533BE7",
+    "lastKnownWriteTime" : 1557415247,
+    "last_content_update" : 1557415247,
+    "path" : "~/Gitlab/SIIL_Environmental_Indicators/7_R_scripts/4_Precipitation.Rmd",
+    "project_path" : null,
+    "properties" : {
+        "cursorPosition" : "45,154",
+        "scrollLine" : "35"
+    },
+    "read_only" : false,
+    "read_only_alternatives" : [
+    ],
+    "relative_order" : 2,
+    "source_on_save" : false,
+    "source_window" : "",
+    "type" : "r_markdown"
+}
