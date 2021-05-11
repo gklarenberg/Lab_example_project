@@ -79,4 +79,3 @@ ggplot(all_data_pollen_count, aes(x = month, y = pheno_count,
                                   group = phenophaseStatus, fill = phenophaseStatus)) +
   geom_bar(stat = "identity", position = "dodge")
 
-# next lab: make prettier
