@@ -1,21 +1,26 @@
+# Geraldine Klarenberg
+# University of Florida
+# School of Forest, Fisheries and Geomatics Sciences
+# Fall semester 2021
 
 # Project example
 # OSBS phenology data and temperature
 # Cleaning script for phenology data
 
-# Load required libraries
+############# 1 Packages ####################
+# Load required packages
 library(tidyverse)
 library(lubridate)
 
+############# 2 Load data ####################
 # Load raw data
-ind_OSBS <- read.csv('Phenology_OSBS/1_Raw_data/phe_perindividual.csv', 
-                stringsAsFactors = FALSE )
+ind_OSBS <- read_csv('Phenology_OSBS/1_Raw_data/phe_perindividual.csv')
 
-status_OSBS <- read.csv('Phenology_OSBS/1_Raw_data/phe_statusintensity.csv', 
-                   stringsAsFactors = FALSE)
+status_OSBS <- read.csv('Phenology_OSBS/1_Raw_data/phe_statusintensity.csv')
 
 # Will be joining data together, clean first.
 
+############# 3 Clean ####################
 # take out column uid, we don't need it. Also take out date for the individual, 
 # as we don't want to merge using this
 ind_OSBS <- select(ind_OSBS, -uid, -date)
@@ -61,6 +66,5 @@ phe_ind_OSBS <- select(phe_ind_OSBS, plotID, date, phenophaseName,
                            decimalLongitude, elevation, taxonID, scientificName,
                            growthForm)
 
-# save file
-write.csv(phe_ind_OSBS, "Phenology_OSBS/2_Clean_data/phenology_clean_OSBS.csv",
-          row.names = FALSE)
+############# 4 Save cleaned data ####################
+write_csv(phe_ind_OSBS, "Phenology_OSBS/2_Clean_data/phenology_clean_OSBS.csv")

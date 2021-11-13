@@ -2,7 +2,12 @@
 
 #### Ordway Swisher Biological Station phenology data
 
-*Geraldine Klarenberg, UF, Spring 2021*
+*Geraldine Klarenberg, UF, Fall 2021*
 
 This is an example project to demonstrate how to set up the semester project.
-We will also practice git and Github again.
+
+All the required folders are inside the phenology folder. The project uses data from the National Ecological Observatory Network, and specifically the Ordway Swisher Biological Station (OSBS) data.
+
+The "03_Analysis" folder explains what analysis was done, and which data was used. 
+
+The "06_Documents" folder has manuals about data collection (done by NEON)

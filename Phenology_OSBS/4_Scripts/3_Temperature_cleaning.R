@@ -1,17 +1,24 @@
+# Geraldine Klarenberg
+# University of Florida
+# School of Forest, Fisheries and Geomatics Sciences
+# Fall semester 2021
 
 # Project example
 # OSBS phenology data and temperature
 # Cleaning script for temperature data
 
-# Load libraries
+############# 1 Packages ####################
+# Load required packages
 library(tidyverse)
 library(lubridate)
 
+############# 2 Load data ####################
 # Read in raw data
 temp30 <- read_csv("Phenology_OSBS/1_Raw_data/SAAT_30min.csv")
 
 temp30
 
+############# 3 Clean ####################
 # Check how many records have quality flags
 sum(temp30$finalQF==1, na.rm=TRUE)
 
@@ -29,7 +36,7 @@ range(temp30_noNA$startDateTime)
 str(temp30_noNA$startDateTime)
 # Time format! read_csv did that automatically for use
 
-############# Check for outliers ##########
+############# 4 Check for outliers ##########
 # Do a quick check for strange values and the distribution
 ggplot(temp30_noNA, aes(x=tempSingleMean))+
   geom_histogram()
@@ -42,9 +49,9 @@ ggplot(temp30_noNA, aes(x = month, y = tempSingleMean, group = month)) +
   geom_boxplot()
 # Looks pretty good!
 
-############ Save data and make plots over time ##########
+############# 5 Save cleaned data ####################
 # Save data 
-write.csv(temp30_noNA, "Phenology_OSBS/2_Clean_data/temp30_clean_OSBS.csv", row.names = FALSE)
+write_csv(temp30_noNA, "Phenology_OSBS/2_Clean_data/temp30_clean_OSBS.csv")
 
 # also make daily data and save
 temp30_daily <- temp30_noNA %>% 
@@ -53,9 +60,9 @@ temp30_daily <- temp30_noNA %>%
   summarize(daily_temp = mean(tempSingleMean)) # don't take NA out: if there is NA you can't make a good average
 temp30_daily$date <- ymd(paste(temp30_daily$year, temp30_daily$month, temp30_daily$day, sep = "-"))
 
-write.csv(temp30_daily, "Phenology_OSBS/2_Clean_data/temp_daily_clean_OSBS.csv", row.names = FALSE)
+write_csv(temp30_daily, "Phenology_OSBS/2_Clean_data/temp_daily_clean_OSBS.csv")
 
-# Plots
+############# 6 Make plots ####################
 temp_plot1 <- ggplot(temp30_noNA, aes(x = startDateTime, y = tempSingleMean)) +
   geom_point(size = 0.1) +
   ggtitle("30-minute temperature") +
@@ -68,11 +75,11 @@ temp_plot2 <- ggplot(temp30_daily, aes(x = date, y = daily_temp)) +
   xlab("Date") + ylab("Temperature (degrees Celsius)") +
   theme_bw()
 
-# Save plots
-pdf("Phenology_OSBS/5_Outputs/temp_plot.pdf", width = 10, height = 7)
+############# 7 Save plots ####################
+jpeg("Phenology_OSBS/5_Outputs/05_temp_plot.jpg", width = 720, height = 504)
 temp_plot1
 dev.off()
 
-pdf("Phenology_OSBS/5_Outputs/temp_daily_plot.pdf", width = 10, height = 7)
+jpeg("Phenology_OSBS/5_Outputs/06_temp_daily_plot.jpg", width = 720, height = 504)
 temp_plot2
 dev.off()
