@@ -73,8 +73,15 @@ ggplot(all_data_pollen, aes(y = daily_temp, group = phenophaseStatus)) +
 all_data_pollen <- all_data_pollen %>% 
   filter(phenophaseStatus %in% c("yes", "no"))
 
-ggplot(all_data_pollen, aes(y = daily_temp, group = phenophaseStatus, fill = phenophaseStatus)) +
-  geom_boxplot()
+pollen_temp_plot <- ggplot(all_data_pollen, aes(y = daily_temp, x = phenophaseStatus, group = phenophaseStatus, fill = phenophaseStatus)) +
+  geom_boxplot()+
+  theme_bw()+
+  labs(x = "Open pollen?", y = "Daily temperature (degrees Celsius)")+
+  theme(legend.position = "none")
+
+jpeg("Phenology_OSBS/5_Outputs/08_pollen_temp_boxplot.jpg")
+pollen_temp_plot
+dev.off()
 
 ### Hmmm. So higher temps = no pollen
 # But maybe that is because this only happens in spring when temperatures rise (so
@@ -94,3 +101,23 @@ ggplot(all_data_pollen_count, aes(x = month, y = pheno_count,
                                   group = phenophaseStatus, fill = phenophaseStatus)) +
   geom_bar(stat = "identity", position = "dodge")
 
+# check daily: plot count vs temp
+all_data_pollen_count2 <- all_data_pollen %>% 
+  select(phenophaseStatus, daily_temp) %>% 
+  filter(!is.na(daily_temp)) %>% 
+  group_by(phenophaseStatus, daily_temp) %>% 
+  summarize(pheno_count = n())
+
+pollen_temp_point <- ggplot(all_data_pollen_count2, aes(x = daily_temp, y = pheno_count, color = phenophaseStatus))+
+  geom_point()+
+  geom_smooth(method = "lm")+
+  labs(x = "Temperature (degrees Celsius)", y = "Number of indiduals in pollen phenophase")+
+  theme_bw()
+
+##### Conlusion: doesn't seem there is a direct relationship with temperature
+# Time of the year: maybe it's daylight, or precipitation?
+# Or a combination?
+
+jpeg("Phenology_OSBS/5_Outputs/09_pollen_temp_points.jpg", width = 720, height = 520)
+pollen_temp_point
+dev.off()
