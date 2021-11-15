@@ -10,4 +10,6 @@ All the required folders are inside the phenology folder. The project uses data 
 
 The "03_Analysis" folder explains what analysis was done, and which data was used. 
 
-The "06_Documents" folder has manuals about data collection (done by NEON)
+The "06_Documents" folder has manuals about data collection (done by NEON).
+
+A metadata folder still needs to be added.
