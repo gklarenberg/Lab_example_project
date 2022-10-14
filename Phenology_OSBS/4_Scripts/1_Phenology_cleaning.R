@@ -1,7 +1,7 @@
 # Geraldine Klarenberg
 # University of Florida
 # School of Forest, Fisheries and Geomatics Sciences
-# Fall semester 2021
+# Fall semester 2021...
 
 # Project example
 # OSBS phenology data and temperature
