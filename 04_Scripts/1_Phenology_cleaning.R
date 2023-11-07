@@ -13,9 +13,9 @@ library(tidyverse)
 
 ############# 2 Load data ####################
 # Load raw data
-ind_OSBS <- read_csv('1_Raw_data/phe_perindividual.csv')
+ind_OSBS <- read_csv('01_Raw_data/phe_perindividual.csv')
 
-status_OSBS <- read.csv('1_Raw_data/phe_statusintensity.csv')
+status_OSBS <- read.csv('01_Raw_data/phe_statusintensity.csv')
 
 # Will be joining data together, clean first.
 
@@ -66,4 +66,4 @@ phe_ind_OSBS <- select(phe_ind_OSBS, plotID, date, phenophaseName,
                            growthForm)
 
 ############# 4 Save cleaned data ####################
-write_csv(phe_ind_OSBS, "2_Clean_data/phenology_clean_OSBS.csv")
+write_csv(phe_ind_OSBS, "02_Clean_data/phenology_clean_OSBS.csv")

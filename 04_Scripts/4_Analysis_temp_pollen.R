@@ -14,8 +14,8 @@ library(cowplot) # for combining ggplots together
 
 ############# 2 Load data ####################
 # Load the clean data
-phe_ind_OSBS <- read_csv("2_Clean_data/phenology_clean_OSBS.csv")
-temp_daily <- read_csv("2_Clean_data/temp_daily_clean_OSBS.csv")
+phe_ind_OSBS <- read_csv("02_Clean_data/phenology_clean_OSBS.csv")
+temp_daily <- read_csv("02_Clean_data/temp_daily_clean_OSBS.csv")
 
 # Make sure there are dates
 class(phe_ind_OSBS$date)
@@ -42,7 +42,7 @@ temp_plot <- ggplot(temp_daily, aes(date, daily_temp)) +
 
 combined_plot <- plot_grid(pheno_pollen, temp_plot, ncol = 1)
 
-jpeg("5_Outputs/07_pollen_temp.jpg", width = 720, height = 720)
+jpeg("05_Outputs/07_pollen_temp.jpg", width = 720, height = 720)
 combined_plot
 dev.off()
 # Should probably still be better aligned: not properly aligned
@@ -78,7 +78,7 @@ pollen_temp_plot <- ggplot(all_data_pollen, aes(y = daily_temp, x = phenophaseSt
   labs(x = "Open pollen?", y = "Daily temperature (degrees Celsius)")+
   theme(legend.position = "none")
 
-jpeg("5_Outputs/08_pollen_temp_boxplot.jpg")
+jpeg("05_Outputs/08_pollen_temp_boxplot.jpg")
 pollen_temp_plot
 dev.off()
 
@@ -117,6 +117,6 @@ pollen_temp_point <- ggplot(all_data_pollen_count2, aes(x = daily_temp, y = phen
 # Time of the year: maybe it's daylight, or precipitation?
 # Or a combination?
 
-jpeg("5_Outputs/09_pollen_temp_points.jpg", width = 720, height = 520)
+jpeg("05_Outputs/09_pollen_temp_points.jpg", width = 720, height = 520)
 pollen_temp_point
 dev.off()

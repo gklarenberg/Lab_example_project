@@ -13,7 +13,7 @@ library(tidyverse)
 
 ############# 2 Load data ####################
 # Load data
-phe_ind_OSBS <- read_csv("2_Clean_data/phenology_clean_OSBS.csv")
+phe_ind_OSBS <- read_csv("02_Clean_data/phenology_clean_OSBS.csv")
 
 # make sure the dates are dates
 class(phe_ind_OSBS$date)
@@ -116,19 +116,19 @@ pheno_percent_points <- ggplot(in_status_yes, aes(date, percent, group = phenoph
 
 ############# 6 Save plots ####################
 
-jpeg("5_Outputs/01_pheno_stack.jpg", width = 720, height = 510)
+jpeg("05_Outputs/01_pheno_stack.jpg", width = 720, height = 510)
 pheno_stack
 dev.off()
 
-jpeg("5_Outputs/02_pheno_group.jpg", width = 720, height = 510)
+jpeg("05_Outputs/02_pheno_group.jpg", width = 720, height = 510)
 pheno_group
 dev.off()
 
-jpeg("5_Outputs/03_pheno_stack_percent.jpg", width = 720, height = 510)
+jpeg("05_Outputs/03_pheno_stack_percent.jpg", width = 720, height = 510)
 pheno_percent_bar
 dev.off()
 
-jpeg("5_Outputs/04_pheno_point_month.jpg", width = 720, height = 510)
+jpeg("05_Outputs/04_pheno_point_month.jpg", width = 720, height = 510)
 pheno_point2
 dev.off()
 
