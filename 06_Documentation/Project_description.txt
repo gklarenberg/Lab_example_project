@@ -1,0 +1,16 @@
+Linking phenology and temperature at Ordway Swisher Biological Station
+
+Aim
+This project looks at (air) temperature and phenology at Ordway Swisher Biological Station (OSBS) in Florida. It aimed to show a relationship between temperatures and phenology observations (needles, open pollen cones), primarily to identify temperatures and times at which pollen present in the area.
+
+Research site
+Descriptions of OSBS can be found here:
+https://www.neonscience.org/field-sites/osbs 
+https://www.battelleecology.org/field-sites/field-sites-map/OSBS 
+
+Data
+Data was downloaded from the NEON data portal: https://data.neonscience.org/data-products/explore 
+The data products used are:
+DP1.10055.001 Plant phenology observations, 2014 - 2017
+DP1.00002.001 - Single aspirated air temperature (30 minutes), 2013 - 2018
+

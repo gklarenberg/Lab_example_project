@@ -2,7 +2,7 @@
 
 #### Ordway Swisher Biological Station phenology data
 
-*Geraldine Klarenberg, UF, Fall 2021*
+*Geraldine Klarenberg, UF, Fall semester*
 
 This is an example project to demonstrate how to set up the semester project.
 
