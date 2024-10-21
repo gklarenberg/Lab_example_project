@@ -13,3 +13,5 @@ The "03_Analysis" folder explains what analysis was done, and which data was use
 The "06_Documents" folder has manuals about data collection (done by NEON).
 
 A metadata folder still needs to be added. Will be added in the Fall of 2025.
+
+Working on forking.
