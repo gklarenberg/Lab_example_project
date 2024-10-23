@@ -14,4 +14,4 @@ The "06_Documents" folder has manuals about data collection (done by NEON).
 
 A metadata folder still needs to be added. Will be added in the Fall of 2025.
 
-hi
+Checking connection.
