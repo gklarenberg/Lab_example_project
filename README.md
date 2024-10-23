@@ -15,4 +15,6 @@ The "06_Documents" folder has manuals about data collection (done by NEON).
 A metadata folder still needs to be added. Will be added in the Fall of 2025.
 
 
-CHANGE IN READ ME FILE
+CHANGE IN READ ME FILE, Updated change after reviewing the zoom recording 
+
+
